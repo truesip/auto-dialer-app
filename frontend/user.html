@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Dialer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .hidden { display: none; }
+        .modal { display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            animation: spin 1s linear infinite; display: inline-block;
+            border: 2px solid rgba(0,0,0,.1); border-left-color: #2563eb;
+            border-radius: 50%; width: 14px; height: 14px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-6xl">
+
+        <!-- Login/Register View -->
+        <div id="authView">
+            <div class="bg-white p-8 rounded-2xl shadow-xl max-w-md mx-auto">
+                <h1 class="text-3xl font-bold text-center text-gray-900 mb-2">User Portal</h1>
+                <p id="auth-view-title" class="text-center text-gray-500 mb-6">Login to your account</p>
+                
+                <form id="loginForm">
+                    <div class="mb-4">
+                        <label for="loginUsername" class="block text-sm font-medium text-gray-700">Username</label>
+                        <input type="text" id="loginUsername" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="loginPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="loginPassword" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700">Login</button>
+                    <p id="loginMessage" class="mt-3 text-sm text-red-600 h-5 text-center"></p>
+                </form>
+
+                <form id="registerForm" class="hidden">
+                    <div class="mb-4">
+                        <label for="registerUsername" class="block text-sm font-medium text-gray-700">Username</label>
+                        <input type="text" id="registerUsername" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="registerPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="registerPassword" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-700">Create Account</button>
+                    <p id="registerMessage" class="mt-3 text-sm h-5 text-center"></p>
+                </form>
+
+                <div class="text-center mt-4">
+                    <button id="toggleAuthMode" class="text-sm text-blue-600 hover:underline">Need an account? Register</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Application View -->
+        <div id="appView" class="hidden">
+            <!-- Dashboard View -->
+            <div id="dashboardView">
+                <header class="flex flex-wrap justify-between items-center mb-8 gap-4">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">My Dashboard</h1>
+                        <p id="welcomeMessage" class="text-gray-600"></p>
+                    </div>
+                    <div class="flex items-center gap-6">
+                         <div class="text-right">
+                             <p class="text-sm text-gray-500">Balance</p>
+                             <p id="userBalance" class="text-2xl font-bold text-green-600">$0.00</p>
+                         </div>
+                        <button id="logoutBtn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600">Logout</button>
+                    </div>
+                </header>
+
+                <div class="bg-white p-6 rounded-2xl shadow-xl mb-8">
+                    <h2 class="text-2xl font-semibold mb-4 text-gray-800">Create New Campaign</h2>
+                    <form id="createCampaignForm">
+                         <div class="mb-4"><label for="campaignName" class="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label><input type="text" id="campaignName" placeholder="e.g., 'Q3 Promotions'" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required></div>
+                         <div class="mb-4"><label for="fromNumber" class="block text-sm font-medium text-gray-700 mb-1">From Number</label><input type="text" id="fromNumber" placeholder="+15551234567" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required></div>
+                         <div class="mb-4"><label for="ttsMessage" class="block text-sm font-medium text-gray-700 mb-1">Text-to-Speech Message</label><p class="text-xs text-gray-500 mb-2">Use `{name}` as a placeholder.</p><textarea id="ttsMessage" rows="3" placeholder="Hello {name}, this is a friendly reminder..." class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required></textarea></div>
+                         <div class="mb-4"><label for="contactsFile" class="block text-sm font-medium text-gray-700 mb-1">Contact List File</label><p class="text-xs text-gray-500 mb-2">Upload a .csv (Name,PhoneNumber) or .txt (PhoneNumber) file.</p><input type="file" id="contactsFile" accept=".csv,.txt" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold" required></div>
+                        <button type="submit" id="createCampaignBtn" class="w-full sm:w-auto bg-indigo-600 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-700">Create Campaign</button>
+                        <p id="createCampaignMessage" class="mt-3 text-sm h-5"></p>
+                    </form>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-xl">
+                     <h2 class="text-2xl font-semibold mb-4 text-gray-800">Manage My Campaigns</h2>
+                     <div id="campaignsList" class="space-y-4"></div>
+                </div>
+            </div>
+            
+            <!-- Dialer Interface (hidden by default) -->
+            <div id="dialerInterface" class="hidden">
+                 <header class="flex justify-between items-center mb-6 border-b pb-4"><h1 class="text-3xl font-bold text-gray-900">Dialer Active</h1><button id="backToDashboardBtn" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md">&larr; Dashboard</button></header>
+                <div class="flex justify-between items-center mb-4 bg-gray-50 p-3 rounded-lg"><h2 class="text-xl font-semibold text-gray-800" id="currentCampaignName"></h2><button id="callAllBtn" class="bg-green-500 text-white font-bold py-2 px-4 rounded-md hover:bg-green-600 shadow-md">Call All</button></div>
+                <div id="contactsBatchList" class="space-y-4 mb-6"></div>
+                <div id="dialer-controls" class="border-t pt-6 text-center"><button id="logAndNextBtn" class="w-full sm:w-1/2 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 text-lg shadow-md">Log Batch & Get Next</button><p id="batch-message" class="mt-4 text-gray-600 font-semibold h-6"></p></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // --- Configuration ---
+        const API_BASE_URL = '/api'; // Use relative path for App Platform
+        const CALL_API_URL = 'https://api.sespcl.com/api/v1/call/tts';
+        const CALL_API_KEY = 'sesplc15053761293';
+        const BATCH_SIZE = 5;
+
+        // --- DOM Elements ---
+        const authView = document.getElementById('authView');
+        const appView = document.getElementById('appView');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const toggleAuthModeBtn = document.getElementById('toggleAuthMode');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const dashboardView = document.getElementById('dashboardView');
+        const dialerInterface = document.getElementById('dialerInterface');
+        const userBalanceEl = document.getElementById('userBalance');
+        const campaignsList = document.getElementById('campaignsList');
+        const createCampaignForm = document.getElementById('createCampaignForm');
+
+        // --- State ---
+        let currentCampaign = null;
+
+        // --- Utility & Auth ---
+        function getFriendlyErrorMessage(error) { if (error instanceof TypeError) { return `Network Error. Is the backend server running?`; } return error.message; }
+        function setAuthToken(token) { localStorage.setItem('authToken', token); }
+        function getAuthToken() { return localStorage.getItem('authToken'); }
+        function logout() {
+            localStorage.removeItem('authToken');
+            authView.classList.remove('hidden');
+            appView.classList.add('hidden');
+        }
+
+        function parseJwt(token) {
+            try { return JSON.parse(atob(token.split('.')[1])); }
+            catch (e) { return null; }
+        }
+
+        function parseContactsFile(fileContent) {
+            const lines = fileContent.split(/\r\n|\n/).filter(line => line.trim() !== '');
+            return lines.map(line => {
+                const parts = line.split(',');
+                let name, rawPhoneNumber;
+                if (parts.length >= 2) { [name, rawPhoneNumber] = parts.map(p => p.trim()); }
+                else { name = rawPhoneNumber = line.trim(); }
+                if (!rawPhoneNumber) return null;
+                const cleaned = rawPhoneNumber.replace(/\D/g, '');
+                const finalNumber = cleaned.length === 10 ? '1' + cleaned : cleaned;
+                return { name, phoneNumber: finalNumber };
+            }).filter(Boolean);
+        }
+
+        // --- App Initialization & Views ---
+        async function initializeApp() {
+            const token = getAuthToken();
+            if (!token) { logout(); return; }
+
+            authView.classList.add('hidden');
+            appView.classList.remove('hidden');
+            dashboardView.classList.remove('hidden');
+            dialerInterface.classList.add('hidden');
+            
+            await fetchAndRenderCampaigns();
+            // In a real app, you'd fetch user details from a dedicated /api/me endpoint
+            // For now we decode the token and will update balance after calls.
+            document.getElementById('welcomeMessage').textContent = `Welcome!`;
+        }
+
+        // --- API & Rendering ---
+        async function fetchAndRenderCampaigns() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/campaigns`, { headers: { 'x-auth-token': getAuthToken() }});
+                const campaigns = await response.json();
+                if (!response.ok) throw new Error(campaigns.message);
+
+                campaignsList.innerHTML = campaigns.length === 0 ? `<p class="text-center text-gray-500">No campaigns yet.</p>` : '';
+                campaigns.forEach(renderCampaign);
+            } catch (error) { campaignsList.innerHTML = `<p class="text-red-500 text-center">${getFriendlyErrorMessage(error)}</p>`; }
+        }
+        
+        function renderCampaign(campaign) {
+            const el = document.createElement('div');
+            el.className = 'border p-4 rounded-lg flex justify-between items-center';
+            el.innerHTML = `
+                <div>
+                    <h3 class="font-bold text-lg">${campaign.name}</h3>
+                    <p class="text-sm">Status: <span class="font-semibold ${campaign.isActive ? 'text-green-600' : 'text-gray-500'}">${campaign.isActive ? 'Active' : 'Paused'}</span></p>
+                </div>
+                <div class="flex gap-2">
+                    <button class="toggle-status-btn text-sm text-white font-bold py-2 px-4 rounded-md ${campaign.isActive ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'}" data-id="${campaign._id}" data-status="${campaign.isActive}">${campaign.isActive ? 'Pause' : 'Start'}</button>
+                    <button class="dial-btn text-sm text-white font-bold py-2 px-4 rounded-md bg-blue-500 hover:bg-blue-600" data-id="${campaign._id}" ${!campaign.isActive ? 'disabled' : ''}>Dial</button>
+                </div>`;
+            campaignsList.appendChild(el);
+        }
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', initializeApp);
+        logoutBtn.addEventListener('click', logout);
+        toggleAuthModeBtn.addEventListener('click', () => {
+            loginForm.classList.toggle('hidden');
+            registerForm.classList.toggle('hidden');
+            const isLogin = !loginForm.classList.contains('hidden');
+            document.getElementById('auth-view-title').textContent = isLogin ? 'Login to your account' : 'Create a new account';
+            toggleAuthModeBtn.textContent = isLogin ? 'Need an account? Register' : 'Have an account? Login';
+        });
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageEl = document.getElementById('loginMessage');
+            messageEl.textContent = '';
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: loginForm.loginUsername.value, password: loginForm.loginPassword.value })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message);
+                setAuthToken(data.token);
+                initializeApp();
+            } catch (error) { messageEl.textContent = getFriendlyErrorMessage(error); }
+        });
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageEl = document.getElementById('registerMessage');
+            messageEl.textContent = '';
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/register`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: registerForm.registerUsername.value, password: registerForm.registerPassword.value, role: 'user' })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message);
+                messageEl.textContent = 'Success! You can now log in.';
+                messageEl.classList.add('text-green-600');
+            } catch (error) { messageEl.textContent = getFriendlyErrorMessage(error); }
+        });
+
+        createCampaignForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageEl = document.getElementById('createCampaignMessage');
+            messageEl.textContent = 'Creating...';
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const contactsData = parseContactsFile(event.target.result);
+                if (contactsData.length === 0) { messageEl.textContent = 'No valid contacts found in file.'; return; }
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/campaigns`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-auth-token': getAuthToken() },
+                        body: JSON.stringify({
+                            name: createCampaignForm.campaignName.value,
+                            fromNumber: createCampaignForm.fromNumber.value,
+                            ttsMessage: createCampaignForm.ttsMessage.value,
+                            contactsData
+                        })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message);
+                    messageEl.textContent = 'Campaign created successfully!';
+                    createCampaignForm.reset();
+                    fetchAndRenderCampaigns();
+                } catch(error) { messageEl.textContent = getFriendlyErrorMessage(error); }
+            };
+            reader.readAsText(createCampaignForm.contactsFile.files[0]);
+        });
+
+        campaignsList.addEventListener('click', async (e) => {
+            const target = e.target;
+            const campaignId = target.dataset.id;
+            if (target.classList.contains('toggle-status-btn')) {
+                await fetch(`${API_BASE_URL}/campaigns/${campaignId}/status`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json', 'x-auth-token': getAuthToken() },
+                    body: JSON.stringify({ isActive: !(target.dataset.status === 'true') })
+                });
+                fetchAndRenderCampaigns();
+            } else if (target.classList.contains('dial-btn')) {
+                currentCampaign = { _id: campaignId }; // Simplified for example
+                dashboardView.classList.add('hidden');
+                dialerInterface.classList.remove('hidden');
+                document.getElementById('currentCampaignName').textContent = `Campaign ID: ${campaignId.substring(0, 8)}...`;
+                fetchNextBatchForDialer();
+            }
+        });
+        
+        document.getElementById('backToDashboardBtn').addEventListener('click', () => {
+             dashboardView.classList.remove('hidden');
+             dialerInterface.classList.add('hidden');
+             fetchAndRenderCampaigns();
+        });
+
+        async function fetchNextBatchForDialer() {
+            const batchMsg = document.getElementById('batch-message');
+            batchMsg.textContent = "Fetching next batch...";
+            try {
+                const response = await fetch(`${API_BASE_URL}/campaigns/${currentCampaign._id}/next-contacts/${BATCH_SIZE}`, {
+                    headers: { 'x-auth-token': getAuthToken() }
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message);
+                }
+                userBalanceEl.textContent = `$${data.newBalance.toFixed(2)}`;
+                renderBatchForDialer(data.contacts);
+                batchMsg.textContent = `Loaded ${data.contacts.length} contacts.`;
+            } catch (error) {
+                batchMsg.textContent = getFriendlyErrorMessage(error);
+                setTimeout(() => document.getElementById('backToDashboardBtn').click(), 4000);
+            }
+        }
+        
+        function renderBatchForDialer(contacts) {
+            const container = document.getElementById('contactsBatchList');
+            container.innerHTML = '';
+            contacts.forEach(contact => {
+                const el = document.createElement('div');
+                el.className = 'border p-3 rounded-lg';
+                el.innerHTML = `<p class="font-semibold">${contact.name}</p><p class="text-sm text-gray-600">${contact.phoneNumber}</p>`;
+                container.appendChild(el);
+            });
+        }
+        
+        document.getElementById('callAllBtn').addEventListener('click', () => {
+            const contacts = document.getElementById('contactsBatchList').children;
+            if (contacts.length > 0) {
+                 alert(`Simulating calls to ${contacts.length} numbers.`);
+            }
+        });
+        
+        document.getElementById('logAndNextBtn').addEventListener('click', fetchNextBatchForDialer);
+
+    </script>
+</body>
+</html>
