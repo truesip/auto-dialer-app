@@ -23,21 +23,16 @@ const PERSPECTIVE_API_URL = `https://commentanalyzer.googleapis.com/v1alpha1/com
 const SPAM_THRESHOLD = 0.8; 
 
 // --- Middleware ---
-
-// **FIX**: Configure CORS to explicitly allow required headers
 const corsOptions = {
   origin: '*', // For production, you might want to restrict this to your frontend's domain.
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
 };
 app.use(cors(corsOptions));
-
 app.use(bodyParser.json());
 
 // --- Health Check Endpoint ---
-// This is defined immediately, before any async operations.
 app.get('/healthz', (req, res) => {
-    // This endpoint just needs to confirm the server process is running.
     res.status(200).send('OK');
 });
 
@@ -97,7 +92,6 @@ const systemSettingsSchema = new mongoose.Schema({
 const SystemSettings = mongoose.model('SystemSettings', systemSettingsSchema);
 
 // --- API Router ---
-// All main application routes will be attached to this router.
 const apiRouter = express.Router();
 
 // --- Helper Functions & Middleware ---
@@ -235,7 +229,7 @@ const startServer = async () => {
             await new SystemSettings().save();
         }
         
-        // Only mount the main API router after the database is ready
+        // **FIX**: Mount the main API router after the database is ready
         app.use('/api', apiRouter);
         console.log('Application is ready to accept API requests.');
 
