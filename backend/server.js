@@ -29,8 +29,6 @@ app.use(bodyParser.json());
 // --- Health Check Endpoint ---
 // This is defined immediately, before any async operations.
 app.get('/healthz', (req, res) => {
-    // A more advanced check could see if the DB connection is alive,
-    // but for the readiness probe, just responding is enough.
     res.status(200).send('OK');
 });
 
@@ -50,78 +48,50 @@ const mongooseOptions = {
 };
 
 // --- Database Schemas & Models ---
-const User = mongoose.model('User', new mongoose.Schema({ /* ... schema ... */ }));
-const Contact = mongoose.model('Contact', new mongoose.Schema({ /* ... schema ... */ }));
-const Campaign = mongoose.model('Campaign', new mongoose.Schema({ /* ... schema ... */ }));
-const SystemSettings = mongoose.model('SystemSettings', new mongoose.Schema({ /* ... schema ... */ }));
+const userSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true, trim: true },
+    password: { type: String, required: true },
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    balance: { type: Number, default: 0.0 },
+    createdAt: { type: Date, default: Date.now }
+});
+const User = mongoose.model('User', userSchema);
+
+const contactSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    phoneNumber: { type: String, required: true },
+    status: { type: String, enum: ['new', 'called', 'answered', 'unanswered'], default: 'new' },
+    callNotes: { type: String, default: '' },
+    campaign: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' }
+});
+contactSchema.index({ phoneNumber: 1, campaign: 1 }, { unique: true });
+const Contact = mongoose.model('Contact', contactSchema);
+
+const campaignSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    fromNumber: { type: String, required: true },
+    ttsMessage: { type: String, required: true },
+    callsPerMinute: { type: Number, default: 5, min: 1, max: 100 },
+    batchDelaySeconds: { type: Number, default: 60, min: 0 },
+    customBlocklist: { type: [String], default: [] },
+    isActive: { type: Boolean, default: false },
+    contacts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Contact' }],
+    createdAt: { type: Date, default: Date.now },
+    lastBatchFetchTime: { type: Date }
+});
+const Campaign = mongoose.model('Campaign', campaignSchema);
+
+const systemSettingsSchema = new mongoose.Schema({
+    singletonKey: { type: String, default: 'main', unique: true, required: true }, 
+    fromNumberBlocklist: { type: [String], default: [] }
+});
+const SystemSettings = mongoose.model('SystemSettings', systemSettingsSchema);
 
 // --- API Router ---
-// All main application routes will be attached to this router.
 const apiRouter = express.Router();
 
 // --- Helper Functions & Middleware ---
-async function isTextFlagged(text, customBlocklist = []) { /* ... */ }
-const authMiddleware = (req, res, next) => { /* ... */ };
-const adminMiddleware = async (req, res, next) => { /* ... */ };
-
-// --- API Endpoints (attached to apiRouter) ---
-apiRouter.post('/auth/register', async (req, res) => { /* ... */ });
-apiRouter.post('/auth/login', async (req, res) => { /* ... */ });
-apiRouter.get('/admin/overview', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-apiRouter.get('/admin/users', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-apiRouter.post('/admin/users/:userId/add-balance', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-apiRouter.get('/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-apiRouter.post('/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-apiRouter.delete('/api/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-apiRouter.post('/campaigns', authMiddleware, async (req, res) => { /* ... */ });
-apiRouter.get('/campaigns', authMiddleware, async (req, res) => { /* ... */ });
-apiRouter.get('/campaigns/:id/next-contacts/:count', authMiddleware, async (req, res) => { /* ... */ });
-
-// Tell the main app to use this router for all /api requests
-app.use('/api', apiRouter);
-
-
-// --- Application Startup ---
-const startServer = async () => {
-    // Step 1: Start the server and listen for traffic immediately.
-    // This ensures health checks pass while the database connects.
-    const server = app.listen(PORT, '0.0.0.0', () => {
-        console.log(`Backend server process started and listening on port ${PORT}`);
-    });
-
-    try {
-        // Step 2: Connect to MongoDB.
-        await mongoose.connect(MONGO_URI, mongooseOptions);
-        console.log('Successfully connected to MongoDB.');
-
-        // Step 3: Initialize any post-connection settings.
-        const settings = await SystemSettings.findOne({ singletonKey: 'main' });
-        if (!settings) {
-            console.log('Initializing system settings...');
-            await new SystemSettings().save();
-        }
-        
-        console.log('Application is ready to accept API requests.');
-
-    } catch (err) {
-        console.error('Failed to connect to database or initialize settings:', err);
-        // If DB connection fails, shut down the server gracefully.
-        server.close(() => {
-            process.exit(1);
-        });
-    }
-};
-
-startServer();
-
-
-// --- Full schemas and function bodies for completeness ---
-mongoose.model('User').schema.add({ username: { type: String, required: true, unique: true, trim: true }, password: { type: String, required: true }, role: { type: String, enum: ['user', 'admin'], default: 'user' }, balance: { type: Number, default: 0.0 }, createdAt: { type: Date, default: Date.now } });
-const contactSchema = new mongoose.Schema({ name: { type: String, required: true }, phoneNumber: { type: String, required: true }, status: { type: String, enum: ['new', 'called', 'answered', 'unanswered'], default: 'new' }, callNotes: { type: String, default: '' }, campaign: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' } });
-contactSchema.index({ phoneNumber: 1, campaign: 1 }, { unique: true });
-mongoose.model('Contact', contactSchema);
-mongoose.model('Campaign').schema.add({ name: { type: String, required: true }, user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, fromNumber: { type: String, required: true }, ttsMessage: { type: String, required: true }, callsPerMinute: { type: Number, default: 5, min: 1, max: 100 }, batchDelaySeconds: { type: Number, default: 60, min: 0 }, customBlocklist: { type: [String], default: [] }, isActive: { type: Boolean, default: false }, contacts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Contact' }], createdAt: { type: Date, default: Date.now }, lastBatchFetchTime: { type: Date } });
-mongoose.model('SystemSettings').schema.add({ singletonKey: { type: String, default: 'main', unique: true, required: true }, fromNumberBlocklist: { type: [String], default: [] } });
 async function isTextFlagged(text, customBlocklist = []) {
     if (PERSPECTIVE_API_KEY && PERSPECTIVE_API_KEY !== 'YOUR_GOOGLE_PERSPECTIVE_API_KEY') {
         try {
@@ -155,6 +125,8 @@ const adminMiddleware = async (req, res, next) => {
         next();
     } catch (e) { res.status(500).send({ message: 'Server error.' }); }
 };
+
+// --- API Endpoints (attached to apiRouter) ---
 apiRouter.post('/auth/register', async (req, res) => {
     try {
         const { username, password, role } = req.body;
@@ -234,3 +206,38 @@ apiRouter.get('/campaigns/:id/next-contacts/:count', authMiddleware, async (req,
         campaign.lastBatchFetchTime = new Date(); await campaign.save(); res.json({ contacts, newBalance: user.balance });
     } catch (error) { res.status(500).json({ message: 'Error fetching contacts.' }); }
 });
+
+// Use the main api router
+app.use('/api', apiRouter);
+
+// --- Application Startup ---
+const startServer = async () => {
+    // Start listening immediately for health checks
+    const server = app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Backend server process started and listening on port ${PORT}`);
+    });
+
+    try {
+        // Now, connect to the database
+        await mongoose.connect(MONGO_URI, mongooseOptions);
+        console.log('Successfully connected to MongoDB.');
+
+        // Initialize any post-connection settings
+        const settings = await SystemSettings.findOne({ singletonKey: 'main' });
+        if (!settings) {
+            console.log('Initializing system settings...');
+            await new SystemSettings().save();
+        }
+        
+        console.log('Application is ready to accept API requests.');
+
+    } catch (err) {
+        console.error('Failed to connect to database or initialize settings:', err);
+        // If DB connection fails, shut down the server gracefully.
+        server.close(() => {
+            process.exit(1);
+        });
+    }
+};
+
+startServer();
