@@ -210,6 +210,9 @@ apiRouter.get('/campaigns/:id/next-contacts/:count', authMiddleware, async (req,
     } catch (error) { res.status(500).json({ message: 'Error fetching contacts.' }); }
 });
 
+// **FIX**: Mount the main API router synchronously before starting async operations.
+app.use('/api', apiRouter);
+
 // --- Application Startup ---
 const startServer = async () => {
     // Start listening immediately for health checks
@@ -229,8 +232,6 @@ const startServer = async () => {
             await new SystemSettings().save();
         }
         
-        // **FIX**: Mount the main API router after the database is ready
-        app.use('/api', apiRouter);
         console.log('Application is ready to accept API requests.');
 
     } catch (err) {
