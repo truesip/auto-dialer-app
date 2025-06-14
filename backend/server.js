@@ -130,6 +130,12 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // --- API Endpoints (attached to apiRouter) ---
+
+// **NEW**: A simple debug route to verify deployment
+apiRouter.get('/version', (req, res) => {
+    res.json({ version: '1.0.1' });
+});
+
 apiRouter.post('/auth/register', async (req, res) => {
     try {
         const { username, password, role } = req.body;
@@ -177,7 +183,6 @@ apiRouter.post('/admin/settings/blocklist', [authMiddleware, adminMiddleware], a
     const settings = await SystemSettings.findOneAndUpdate({ singletonKey: 'main' }, { $addToSet: { fromNumberBlocklist: { $each: numbersToAdd } } }, { new: true, upsert: true });
     res.json(settings.fromNumberBlocklist);
 });
-// **FIX**: Corrected the route path by removing the redundant '/api'
 apiRouter.delete('/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => {
     const { numberToRemove } = req.body;
     const settings = await SystemSettings.findOneAndUpdate({ singletonKey: 'main' }, { $pull: { fromNumberBlocklist: numberToRemove } }, { new: true });
