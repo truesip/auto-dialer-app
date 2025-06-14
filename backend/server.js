@@ -23,7 +23,15 @@ const PERSPECTIVE_API_URL = `https://commentanalyzer.googleapis.com/v1alpha1/com
 const SPAM_THRESHOLD = 0.8; 
 
 // --- Middleware ---
-app.use(cors());
+
+// **FIX**: Configure CORS to explicitly allow required headers
+const corsOptions = {
+  origin: '*', // For production, you might want to restrict this to your frontend's domain.
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
+};
+app.use(cors(corsOptions));
+
 app.use(bodyParser.json());
 
 // --- Health Check Endpoint ---
@@ -227,7 +235,7 @@ const startServer = async () => {
             await new SystemSettings().save();
         }
         
-        // **FIX**: Only mount the main API router after the database is ready
+        // Only mount the main API router after the database is ready
         app.use('/api', apiRouter);
         console.log('Application is ready to accept API requests.');
 
