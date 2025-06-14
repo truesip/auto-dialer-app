@@ -108,7 +108,7 @@
     
     <script>
         // --- Configuration ---
-        const API_BASE_URL = 'https://backend-cllni.ondigitalocean.app/api'; // Use relative path for App Platform
+        const API_BASE_URL = 'https://backend-cllni.ondigitalocean.app/api'; // Use LIVE backend URL
         const CALL_API_URL = 'https://api.sespcl.com/api/v1/call/tts';
         const CALL_API_KEY = 'sesplc15053761293';
         const BATCH_SIZE = 5;
@@ -128,6 +128,7 @@
 
         // --- State ---
         let currentCampaign = null;
+        let currentUser = null;
 
         // --- Utility & Auth ---
         function getFriendlyErrorMessage(error) { if (error instanceof TypeError) { return `Network Error. Is the backend server running?`; } return error.message; }
@@ -169,8 +170,8 @@
             dialerInterface.classList.add('hidden');
             
             await fetchAndRenderCampaigns();
-            // In a real app, you'd fetch user details from a dedicated /api/me endpoint
-            // For now we decode the token and will update balance after calls.
+            // In a real app, you'd fetch user details (like balance) from a dedicated endpoint
+            // For now we'll just show a placeholder until a call is made
             document.getElementById('welcomeMessage').textContent = `Welcome!`;
         }
 
@@ -195,8 +196,8 @@
                     <p class="text-sm">Status: <span class="font-semibold ${campaign.isActive ? 'text-green-600' : 'text-gray-500'}">${campaign.isActive ? 'Active' : 'Paused'}</span></p>
                 </div>
                 <div class="flex gap-2">
-                    <button class="toggle-status-btn text-sm text-white font-bold py-2 px-4 rounded-md ${campaign.isActive ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'}" data-id="${campaign._id}" data-status="${campaign.isActive}">${campaign.isActive ? 'Pause' : 'Start'}</button>
-                    <button class="dial-btn text-sm text-white font-bold py-2 px-4 rounded-md bg-blue-500 hover:bg-blue-600" data-id="${campaign._id}" ${!campaign.isActive ? 'disabled' : ''}>Dial</button>
+                    <button class="toggle-status-btn text-sm text-white font-bold py-2 px-4 rounded-md ${campaign.isActive ? 'bg-yellow-500' : 'bg-green-500'}" data-id="${campaign._id}" data-status="${campaign.isActive}">${campaign.isActive ? 'Pause' : 'Start'}</button>
+                    <button class="dial-btn text-sm text-white font-bold py-2 px-4 rounded-md bg-blue-500" data-id="${campaign._id}" ${!campaign.isActive ? 'disabled' : ''}>Dial</button>
                 </div>`;
             campaignsList.appendChild(el);
         }
@@ -306,6 +307,7 @@
                 });
                 const data = await response.json();
                 if (!response.ok) {
+                    // This handles low balance and other errors
                     throw new Error(data.message);
                 }
                 userBalanceEl.textContent = `$${data.newBalance.toFixed(2)}`;
@@ -313,6 +315,7 @@
                 batchMsg.textContent = `Loaded ${data.contacts.length} contacts.`;
             } catch (error) {
                 batchMsg.textContent = getFriendlyErrorMessage(error);
+                // Auto-return to dashboard on critical error
                 setTimeout(() => document.getElementById('backToDashboardBtn').click(), 4000);
             }
         }
@@ -329,6 +332,7 @@
         }
         
         document.getElementById('callAllBtn').addEventListener('click', () => {
+            // Simplified call simulation
             const contacts = document.getElementById('contactsBatchList').children;
             if (contacts.length > 0) {
                  alert(`Simulating calls to ${contacts.length} numbers.`);
