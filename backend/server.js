@@ -29,6 +29,7 @@ app.use(bodyParser.json());
 // --- Health Check Endpoint ---
 // This is defined immediately, before any async operations.
 app.get('/healthz', (req, res) => {
+    // This endpoint just needs to confirm the server process is running.
     res.status(200).send('OK');
 });
 
@@ -48,14 +49,13 @@ const mongooseOptions = {
 };
 
 // --- Database Schemas & Models ---
-const userSchema = new mongoose.Schema({
+const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, required: true, unique: true, trim: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     balance: { type: Number, default: 0.0 },
     createdAt: { type: Date, default: Date.now }
-});
-const User = mongoose.model('User', userSchema);
+}));
 
 const contactSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -89,6 +89,7 @@ const systemSettingsSchema = new mongoose.Schema({
 const SystemSettings = mongoose.model('SystemSettings', systemSettingsSchema);
 
 // --- API Router ---
+// All main application routes will be attached to this router.
 const apiRouter = express.Router();
 
 // --- Helper Functions & Middleware ---
@@ -207,9 +208,6 @@ apiRouter.get('/campaigns/:id/next-contacts/:count', authMiddleware, async (req,
     } catch (error) { res.status(500).json({ message: 'Error fetching contacts.' }); }
 });
 
-// Use the main api router
-app.use('/api', apiRouter);
-
 // --- Application Startup ---
 const startServer = async () => {
     // Start listening immediately for health checks
@@ -229,6 +227,8 @@ const startServer = async () => {
             await new SystemSettings().save();
         }
         
+        // **FIX**: Only mount the main API router after the database is ready
+        app.use('/api', apiRouter);
         console.log('Application is ready to accept API requests.');
 
     } catch (err) {
