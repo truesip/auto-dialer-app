@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 // Using require for node-fetch v2 which is compatible with CommonJS
 const fetch = require('node-fetch');
+const fs = require('fs'); // Added to read the CA certificate file
 
 // --- Basic Setup ---
 const app = express();
@@ -34,12 +35,17 @@ if (!MONGO_URI || !JWT_SECRET) {
     process.exit(1);
 }
 
+// **FIX**: Explicitly add SSL options for connecting to DigitalOcean Managed Databases
 const mongooseOptions = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     useFindAndModify: false,
     useCreateIndex: true,
-    serverSelectionTimeoutMS: 30000 // **NEW**: Increase timeout to 30 seconds
+    serverSelectionTimeoutMS: 30000,
+    ssl: true, // Mandate SSL
+    sslValidate: true,
+    // The CA_CERT env var provides the path to the certificate file. Read it.
+    sslCA: process.env.CA_CERT ? fs.readFileSync(process.env.CA_CERT) : undefined
 };
 
 // --- Database Schemas & Models ---
@@ -103,7 +109,7 @@ app.get('/api/campaigns/:id/next-contacts/:count', authMiddleware, async (req, r
 // --- Application Startup ---
 const startServer = async () => {
     try {
-        // **FIX**: Connect to MongoDB BEFORE starting the server
+        // Connect to MongoDB BEFORE starting the server
         await mongoose.connect(MONGO_URI, mongooseOptions);
         console.log('Successfully connected to MongoDB.');
 
