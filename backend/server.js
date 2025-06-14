@@ -9,7 +9,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 // Using require for node-fetch v2 which is compatible with CommonJS
 const fetch = require('node-fetch');
-const fs = require('fs'); // Added to read the CA certificate file
 
 // --- Basic Setup ---
 const app = express();
@@ -36,18 +35,13 @@ if (!MONGO_URI) {
     process.exit(1);
 }
 
-// **FIX**: Add SSL options for connecting to DigitalOcean Managed Databases
-const caCertPath = process.env.CA_CERT;
+// **FIX**: Simplify connection options. The MONGO_URI provided by the App Platform
+// should contain all the necessary SSL configuration in its parameters.
 const mongooseOptions = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     useFindAndModify: false,
-    // Add SSL options ONLY if the CA_CERT environment variable exists
-    ...(caCertPath && {
-        ssl: true,
-        sslValidate: true,
-        sslCA: caCertPath,
-    })
+    useCreateIndex: true // Added for modern Mongoose versions
 };
 
 mongoose.connect(MONGO_URI, mongooseOptions)
@@ -329,7 +323,6 @@ app.get('/api/campaigns/:id/next-contacts/:count', authMiddleware, async (req, r
 });
 
 // --- Server Listener ---
-// **FIX**: Explicitly listen on '0.0.0.0' to be compatible with containerized environments like DO App Platform
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Backend server is running on port ${PORT}`);
 });
