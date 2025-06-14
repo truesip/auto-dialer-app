@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 // Using require for node-fetch v2 which is compatible with CommonJS
 const fetch = require('node-fetch');
+const fs = require('fs'); // Added to read the CA certificate file
 
 // --- Basic Setup ---
 const app = express();
@@ -34,7 +35,22 @@ if (!MONGO_URI) {
     console.error('FATAL ERROR: MONGO_URI is not defined. Please set it in your environment variables.');
     process.exit(1);
 }
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false })
+
+// **FIX**: Add SSL options for connecting to DigitalOcean Managed Databases
+const caCertPath = process.env.CA_CERT;
+const mongooseOptions = {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    useFindAndModify: false,
+    // Add SSL options ONLY if the CA_CERT environment variable exists
+    ...(caCertPath && {
+        ssl: true,
+        sslValidate: true,
+        sslCA: caCertPath,
+    })
+};
+
+mongoose.connect(MONGO_URI, mongooseOptions)
 .then(() => console.log('Successfully connected to MongoDB.'))
 .catch(err => {
     console.error('MongoDB connection error:', err);
