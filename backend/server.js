@@ -26,121 +26,102 @@ const SPAM_THRESHOLD = 0.8;
 app.use(cors());
 app.use(bodyParser.json());
 
-// **FIX**: Add a lightweight health check endpoint.
-// This route is defined BEFORE the main API routes and database connection logic.
-// It will respond immediately to DigitalOcean's readiness probes.
+// --- Health Check Endpoint ---
+// This is defined immediately, before any async operations.
 app.get('/healthz', (req, res) => {
-    // This endpoint should not perform any database or other async operations.
-    // It just needs to confirm the Express server process is running.
+    // A more advanced check could see if the DB connection is alive,
+    // but for the readiness probe, just responding is enough.
     res.status(200).send('OK');
 });
 
-
 // --- MongoDB Connection ---
 const MONGO_URI = process.env.MONGO_URI;
-// Added check for MONGO_URI to prevent crashes on startup
 if (!MONGO_URI || !JWT_SECRET) {
     console.error('FATAL ERROR: MONGO_URI or JWT_SECRET is not defined. Please set environment variables.');
     process.exit(1);
 }
 
-// **FIX**: Simplify connection options completely. 
-// The MONGO_URI provided by the App Platform should contain all necessary SSL config.
 const mongooseOptions = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     useFindAndModify: false,
     useCreateIndex: true,
-    serverSelectionTimeoutMS: 30000 // Keep a generous timeout
+    serverSelectionTimeoutMS: 30000 
 };
 
 // --- Database Schemas & Models ---
-const User = mongoose.model('User', new mongoose.Schema({
-    username: { type: String, required: true, unique: true, trim: true },
-    password: { type: String, required: true },
-    role: { type: String, enum: ['user', 'admin'], default: 'user' },
-    balance: { type: Number, default: 0.0 },
-    createdAt: { type: Date, default: Date.now }
-}));
+const User = mongoose.model('User', new mongoose.Schema({ /* ... schema ... */ }));
+const Contact = mongoose.model('Contact', new mongoose.Schema({ /* ... schema ... */ }));
+const Campaign = mongoose.model('Campaign', new mongoose.Schema({ /* ... schema ... */ }));
+const SystemSettings = mongoose.model('SystemSettings', new mongoose.Schema({ /* ... schema ... */ }));
 
-const contactSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    phoneNumber: { type: String, required: true },
-    status: { type: String, enum: ['new', 'called', 'answered', 'unanswered'], default: 'new' },
-    callNotes: { type: String, default: '' },
-    campaign: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' }
-});
-contactSchema.index({ phoneNumber: 1, campaign: 1 }, { unique: true });
-const Contact = mongoose.model('Contact', contactSchema);
-
-const Campaign = mongoose.model('Campaign', new mongoose.Schema({
-    name: { type: String, required: true },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    fromNumber: { type: String, required: true },
-    ttsMessage: { type: String, required: true },
-    callsPerMinute: { type: Number, default: 5, min: 1, max: 100 },
-    batchDelaySeconds: { type: Number, default: 60, min: 0 },
-    customBlocklist: { type: [String], default: [] },
-    isActive: { type: Boolean, default: false },
-    contacts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Contact' }],
-    createdAt: { type: Date, default: Date.now },
-    lastBatchFetchTime: { type: Date }
-}));
-
-const SystemSettings = mongoose.model('SystemSettings', new mongoose.Schema({
-    singletonKey: { type: String, default: 'main', unique: true, required: true }, 
-    fromNumberBlocklist: { type: [String], default: [] }
-}));
+// --- API Router ---
+// All main application routes will be attached to this router.
+const apiRouter = express.Router();
 
 // --- Helper Functions & Middleware ---
 async function isTextFlagged(text, customBlocklist = []) { /* ... */ }
 const authMiddleware = (req, res, next) => { /* ... */ };
 const adminMiddleware = async (req, res, next) => { /* ... */ };
 
+// --- API Endpoints (attached to apiRouter) ---
+apiRouter.post('/auth/register', async (req, res) => { /* ... */ });
+apiRouter.post('/auth/login', async (req, res) => { /* ... */ });
+apiRouter.get('/admin/overview', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
+apiRouter.get('/admin/users', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
+apiRouter.post('/admin/users/:userId/add-balance', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
+apiRouter.get('/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
+apiRouter.post('/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
+apiRouter.delete('/api/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
+apiRouter.post('/campaigns', authMiddleware, async (req, res) => { /* ... */ });
+apiRouter.get('/campaigns', authMiddleware, async (req, res) => { /* ... */ });
+apiRouter.get('/campaigns/:id/next-contacts/:count', authMiddleware, async (req, res) => { /* ... */ });
 
-// --- API Endpoints ---
-app.post('/api/auth/register', async (req, res) => { /* ... */ });
-app.post('/api/auth/login', async (req, res) => { /* ... */ });
-app.get('/api/admin/overview', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-app.get('/api/admin/users', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-app.post('/api/admin/users/:userId/add-balance', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-app.get('/api/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-app.post('/api/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-app.delete('/api/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
-app.post('/api/campaigns', authMiddleware, async (req, res) => { /* ... */ });
-app.get('/api/campaigns', authMiddleware, async (req, res) => { /* ... */ });
-app.get('/api/campaigns/:id/next-contacts/:count', authMiddleware, async (req, res) => { /* ... */ });
+// Tell the main app to use this router for all /api requests
+app.use('/api', apiRouter);
 
 
 // --- Application Startup ---
 const startServer = async () => {
+    // Step 1: Start the server and listen for traffic immediately.
+    // This ensures health checks pass while the database connects.
+    const server = app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Backend server process started and listening on port ${PORT}`);
+    });
+
     try {
-        // Connect to MongoDB BEFORE starting the server
+        // Step 2: Connect to MongoDB.
         await mongoose.connect(MONGO_URI, mongooseOptions);
         console.log('Successfully connected to MongoDB.');
 
-        // Initialize system settings after successful connection
+        // Step 3: Initialize any post-connection settings.
         const settings = await SystemSettings.findOne({ singletonKey: 'main' });
         if (!settings) {
             console.log('Initializing system settings...');
             await new SystemSettings().save();
         }
-
-        // Only start listening for requests after the database is ready
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log(`Backend server is running on port ${PORT}`);
-        });
+        
+        console.log('Application is ready to accept API requests.');
 
     } catch (err) {
-        console.error('Failed to start server:', err);
-        process.exit(1);
+        console.error('Failed to connect to database or initialize settings:', err);
+        // If DB connection fails, shut down the server gracefully.
+        server.close(() => {
+            process.exit(1);
+        });
     }
 };
 
 startServer();
 
 
-// --- Full function bodies for completeness (no logic changes) ---
+// --- Full schemas and function bodies for completeness ---
+mongoose.model('User').schema.add({ username: { type: String, required: true, unique: true, trim: true }, password: { type: String, required: true }, role: { type: String, enum: ['user', 'admin'], default: 'user' }, balance: { type: Number, default: 0.0 }, createdAt: { type: Date, default: Date.now } });
+const contactSchema = new mongoose.Schema({ name: { type: String, required: true }, phoneNumber: { type: String, required: true }, status: { type: String, enum: ['new', 'called', 'answered', 'unanswered'], default: 'new' }, callNotes: { type: String, default: '' }, campaign: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' } });
+contactSchema.index({ phoneNumber: 1, campaign: 1 }, { unique: true });
+mongoose.model('Contact', contactSchema);
+mongoose.model('Campaign').schema.add({ name: { type: String, required: true }, user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, fromNumber: { type: String, required: true }, ttsMessage: { type: String, required: true }, callsPerMinute: { type: Number, default: 5, min: 1, max: 100 }, batchDelaySeconds: { type: Number, default: 60, min: 0 }, customBlocklist: { type: [String], default: [] }, isActive: { type: Boolean, default: false }, contacts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Contact' }], createdAt: { type: Date, default: Date.now }, lastBatchFetchTime: { type: Date } });
+mongoose.model('SystemSettings').schema.add({ singletonKey: { type: String, default: 'main', unique: true, required: true }, fromNumberBlocklist: { type: [String], default: [] } });
 async function isTextFlagged(text, customBlocklist = []) {
     if (PERSPECTIVE_API_KEY && PERSPECTIVE_API_KEY !== 'YOUR_GOOGLE_PERSPECTIVE_API_KEY') {
         try {
@@ -174,7 +155,7 @@ const adminMiddleware = async (req, res, next) => {
         next();
     } catch (e) { res.status(500).send({ message: 'Server error.' }); }
 };
-app.post('/api/auth/register', async (req, res) => {
+apiRouter.post('/auth/register', async (req, res) => {
     try {
         const { username, password, role } = req.body;
         if (await User.findOne({ username })) return res.status(400).json({ message: 'User already exists.' });
@@ -183,7 +164,7 @@ app.post('/api/auth/register', async (req, res) => {
         jwt.sign(payload, JWT_SECRET, { expiresIn: 3600 }, (err, token) => { if (err) throw err; res.json({ token }); });
     } catch (err) { res.status(500).send('Server error'); }
 });
-app.post('/api/auth/login', async (req, res) => {
+apiRouter.post('/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
@@ -192,20 +173,20 @@ app.post('/api/auth/login', async (req, res) => {
         jwt.sign(payload, JWT_SECRET, { expiresIn: 3600 }, (err, token) => { if (err) throw err; res.json({ token }); });
     } catch (err) { res.status(500).send('Server error'); }
 });
-app.get('/api/admin/overview', [authMiddleware, adminMiddleware], async (req, res) => {
+apiRouter.get('/admin/overview', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
         const [totalUsers, totalCampaigns, totalCallsMade] = await Promise.all([User.countDocuments(), Campaign.countDocuments(), Contact.countDocuments({ status: { $ne: 'new' } })]);
         res.json({ totalUsers, totalCampaigns, totalCallsMade });
     } catch (err) { res.status(500).send('Server Error'); }
 });
-app.get('/api/admin/users', [authMiddleware, adminMiddleware], async (req, res) => {
+apiRouter.get('/admin/users', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1; const limit = parseInt(req.query.limit, 10) || 5; const skip = (page - 1) * limit;
         const totalUsers = await User.countDocuments(); const users = await User.find().select('-password').sort({ createdAt: -1 }).skip(skip).limit(limit);
         res.json({ users, totalPages: Math.ceil(totalUsers / limit), currentPage: page });
     } catch (err) { res.status(500).send('Server error'); }
 });
-app.post('/api/admin/users/:userId/add-balance', [authMiddleware, adminMiddleware], async (req, res) => {
+apiRouter.post('/admin/users/:userId/add-balance', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
         const { amount } = req.body;
         if (typeof amount !== 'number' || amount <= 0) return res.status(400).json({ message: 'Invalid amount.' });
@@ -213,20 +194,20 @@ app.post('/api/admin/users/:userId/add-balance', [authMiddleware, adminMiddlewar
         if (!user) return res.status(404).json({ message: 'User not found.' }); res.json(user);
     } catch (err) { res.status(500).send('Server error'); }
 });
-app.get('/api/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => {
+apiRouter.get('/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => {
     const settings = await SystemSettings.findOne({ singletonKey: 'main' }); res.json(settings.fromNumberBlocklist || []);
 });
-app.post('/api/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => {
+apiRouter.post('/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => {
     const numbersToAdd = req.body.numbers ? req.body.numbers.split(',').map(n => n.trim()).filter(n => n) : [];
     const settings = await SystemSettings.findOneAndUpdate({ singletonKey: 'main' }, { $addToSet: { fromNumberBlocklist: { $each: numbersToAdd } } }, { new: true, upsert: true });
     res.json(settings.fromNumberBlocklist);
 });
-app.delete('/api/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => {
+apiRouter.delete('/admin/settings/blocklist', [authMiddleware, adminMiddleware], async (req, res) => {
     const { numberToRemove } = req.body;
     const settings = await SystemSettings.findOneAndUpdate({ singletonKey: 'main' }, { $pull: { fromNumberBlocklist: numberToRemove } }, { new: true });
     res.json(settings.fromNumberBlocklist);
 });
-app.post('/api/campaigns', authMiddleware, async (req, res) => {
+apiRouter.post('/campaigns', authMiddleware, async (req, res) => {
     try {
         const { name, fromNumber, ttsMessage, contactsData, customBlocklist } = req.body;
         const blocklistArray = customBlocklist ? customBlocklist.split(',').map(w => w.trim().toLowerCase()).filter(Boolean) : [];
@@ -238,8 +219,8 @@ app.post('/api/campaigns', authMiddleware, async (req, res) => {
         campaign.contacts = contacts.map(c => c._id); await campaign.save(); res.status(201).json(campaign);
     } catch (error) { res.status(error.code === 11000 ? 409 : 500).json({ message: 'Error creating campaign.' }); }
 });
-app.get('/api/campaigns', authMiddleware, async (req, res) => { const campaigns = await Campaign.find({ user: req.user.id }).populate('contacts'); res.json(campaigns); });
-app.get('/api/campaigns/:id/next-contacts/:count', authMiddleware, async (req, res) => {
+apiRouter.get('/campaigns', authMiddleware, async (req, res) => { const campaigns = await Campaign.find({ user: req.user.id }).populate('contacts'); res.json(campaigns); });
+apiRouter.get('/campaigns/:id/next-contacts/:count', authMiddleware, async (req, res) => {
     try {
         const user = await User.findById(req.user.id);
         const batchSize = parseInt(req.params.count, 10) || 5;
