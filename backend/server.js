@@ -9,7 +9,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 // Using require for node-fetch v2 which is compatible with CommonJS
 const fetch = require('node-fetch');
-const fs = require('fs'); // Added to read the CA certificate file
 
 // --- Basic Setup ---
 const app = express();
@@ -27,6 +26,10 @@ const SPAM_THRESHOLD = 0.8;
 app.use(cors());
 app.use(bodyParser.json());
 
+app.get('/healthz', (req, res) => {
+    res.status(200).send('OK');
+});
+
 // --- MongoDB Connection ---
 const MONGO_URI = process.env.MONGO_URI;
 // Added check for MONGO_URI to prevent crashes on startup
@@ -35,17 +38,14 @@ if (!MONGO_URI || !JWT_SECRET) {
     process.exit(1);
 }
 
-// **FIX**: Explicitly add SSL options for connecting to DigitalOcean Managed Databases
+// **FIX**: Simplify connection options completely. 
+// The MONGO_URI provided by the App Platform should contain all necessary SSL config.
 const mongooseOptions = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     useFindAndModify: false,
     useCreateIndex: true,
-    serverSelectionTimeoutMS: 30000,
-    ssl: true, // Mandate SSL
-    sslValidate: true,
-    // The CA_CERT env var provides the path to the certificate file. Read it.
-    sslCA: process.env.CA_CERT ? fs.readFileSync(process.env.CA_CERT) : undefined
+    serverSelectionTimeoutMS: 30000 // Keep a generous timeout
 };
 
 // --- Database Schemas & Models ---
@@ -86,13 +86,13 @@ const SystemSettings = mongoose.model('SystemSettings', new mongoose.Schema({
     fromNumberBlocklist: { type: [String], default: [] }
 }));
 
-// --- Helper Functions & Middleware (no changes) ---
+// --- Helper Functions & Middleware ---
 async function isTextFlagged(text, customBlocklist = []) { /* ... */ }
 const authMiddleware = (req, res, next) => { /* ... */ };
 const adminMiddleware = async (req, res, next) => { /* ... */ };
 
 
-// --- API Endpoints (no changes) ---
+// --- API Endpoints ---
 app.post('/api/auth/register', async (req, res) => { /* ... */ });
 app.post('/api/auth/login', async (req, res) => { /* ... */ });
 app.get('/api/admin/overview', [authMiddleware, adminMiddleware], async (req, res) => { /* ... */ });
@@ -134,7 +134,7 @@ const startServer = async () => {
 startServer();
 
 
-// --- Full function bodies for completeness (no logic changes from previous version) ---
+// --- Full function bodies for completeness (no logic changes) ---
 async function isTextFlagged(text, customBlocklist = []) {
     if (PERSPECTIVE_API_KEY && PERSPECTIVE_API_KEY !== 'YOUR_GOOGLE_PERSPECTIVE_API_KEY') {
         try {
