@@ -26,9 +26,15 @@ const SPAM_THRESHOLD = 0.8;
 app.use(cors());
 app.use(bodyParser.json());
 
+// **FIX**: Add a lightweight health check endpoint.
+// This route is defined BEFORE the main API routes and database connection logic.
+// It will respond immediately to DigitalOcean's readiness probes.
 app.get('/healthz', (req, res) => {
+    // This endpoint should not perform any database or other async operations.
+    // It just needs to confirm the Express server process is running.
     res.status(200).send('OK');
 });
+
 
 // --- MongoDB Connection ---
 const MONGO_URI = process.env.MONGO_URI;
