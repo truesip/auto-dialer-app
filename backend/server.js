@@ -12,26 +12,34 @@ const fetch = require('node-fetch');
 
 // --- Basic Setup ---
 const app = express();
-const PORT = process.env.PORT || 5000;
-const JWT_SECRET = 'your_jwt_secret_key'; // IMPORTANT: Use an environment variable in production
-const CALL_COST = 0.05; // Cost per call initiated
+// The App Platform sets the PORT environment variable.
+// Defaulting to 8080 is a good practice for these platforms.
+const PORT = process.env.PORT || 8080; 
+const JWT_SECRET = process.env.JWT_SECRET || 'your_default_jwt_secret_key'; 
+const CALL_COST = 0.05; 
 
 // --- Google Perspective API Configuration ---
-// IMPORTANT: Replace with your actual Google Perspective API key. 
-// It's highly recommended to use an environment variable for this in production.
-const PERSPECTIVE_API_KEY = 'YOUR_GOOGLE_PERSPECTIVE_API_KEY'; 
+const PERSPECTIVE_API_KEY = process.env.PERSPECTIVE_API_KEY; 
 const PERSPECTIVE_API_URL = `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${PERSPECTIVE_API_KEY}`;
-const SPAM_THRESHOLD = 0.8; // Reject if spam/toxicity/threat score is above this value
+const SPAM_THRESHOLD = 0.8; 
 
 // --- Middleware ---
 app.use(cors());
 app.use(bodyParser.json());
 
 // --- MongoDB Connection ---
-const MONGO_URI = 'mongodb://localhost:27017/auto-dialer';
+const MONGO_URI = process.env.MONGO_URI;
+// Added check for MONGO_URI to prevent crashes on startup
+if (!MONGO_URI) {
+    console.error('FATAL ERROR: MONGO_URI is not defined. Please set it in your environment variables.');
+    process.exit(1);
+}
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false })
 .then(() => console.log('Successfully connected to MongoDB.'))
-.catch(err => console.error('MongoDB connection error:', err));
+.catch(err => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1); // Exit if cannot connect to DB
+});
 
 // --- Database Schemas & Models ---
 
@@ -305,4 +313,7 @@ app.get('/api/campaigns/:id/next-contacts/:count', authMiddleware, async (req, r
 });
 
 // --- Server Listener ---
-app.listen(PORT, () => console.log(`Backend server is running on http://localhost:${PORT}`));
+// **FIX**: Explicitly listen on '0.0.0.0' to be compatible with containerized environments like DO App Platform
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Backend server is running on port ${PORT}`);
+});
