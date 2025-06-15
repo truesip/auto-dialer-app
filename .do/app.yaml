@@ -1,0 +1,33 @@
+name: autodialer-app
+services:
+- name: backend
+  github:
+    repo: truesip/auto-dialer-app
+    branch: main
+    source_dir: /backend
+  routes:
+  - path: /api
+  http_port: 8080
+  health_check:
+    http_path: /healthz
+  envs:
+  - key: JWT_SECRET
+    value: "${JWT_SECRET}"
+    scope: RUN_AND_BUILD_TIME
+  - key: PERSPECTIVE_API_KEY
+    value: "${PERSPECTIVE_API_KEY}"
+    scope: RUN_AND_BUILD_TIME
+  - key: MONGO_URI
+    value: "${db.MONGO_URI}"
+    scope: RUN_AND_BUILD_TIME
+static_sites:
+- name: frontend
+  github:
+    repo: truesip/auto-dialer-app
+    branch: main
+    source_dir: /frontend
+  routes:
+  - path: /
+databases:
+- name: db
+  engine: MONGODB
