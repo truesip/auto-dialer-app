@@ -1,6 +1,6 @@
 {
   "name": "autodialer-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The backend server for the auto-dialer application.",
   "main": "server.js",
   "scripts": {
